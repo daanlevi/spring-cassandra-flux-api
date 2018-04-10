@@ -1,0 +1,70 @@
+# This file is a template, and might need editing before it works on your project.
+# This template has been DEPRECATED. Consider using Auto DevOps instead:
+# https://docs.gitlab.com/ee/topics/autodevops
+
+# Explanation on the scripts:
+# https://gitlab.com/gitlab-examples/kubernetes-deploy/blob/master/README.md
+SERVICE_NAME: <repo_name>/fluxapi
+VERSION: latest
+DOCKERIMAGE: "$SERVICE_NAME:$VERSION"
+ENVIRONMENT: "test"
+
+#image: docker:latest
+
+variables:
+  # Application deployment domain
+  KUBE_DOMAIN: <k8s.domain.name>
+
+stages:
+  - build
+  - test
+  - prepair
+  - staging
+  - production
+  - clean
+
+build:
+  stage: build
+  script:
+    - mvn package
+
+test:
+  stage: test
+  script:
+    - docker build --no-cache -t $DOCKERIMAGE .
+    - docker tag $SERVICE_NAME $DOCKERIMAGE
+    - docker push $DOCKERIMAGE
+
+prepair:
+  stage: prepair
+  - helm install --namespace $ENVIRONMENT --name cassandra incubator/cassandra
+  - kubectl port-forward cassandra-cassandra-0 9042:9042 -n $ENVIRONMENT
+  - ./create_db.sh
+
+staging:
+  stage: staging
+  script:
+    - helm install --namespace $ENVIRONMENT --name fluxapi ./fluxapi
+  environment:
+    name: $ENVIRONMENT
+    url: http://$CI_PROJECT_PATH_SLUG-$ENVIRONMENT.$KUBE_DOMAIN
+  only:
+    - master
+
+production:
+  stage: production
+  script:
+    - helm install --namespace production --name fluxapi ./fluxapi
+  environment:
+    name: production
+    url: http://$CI_PROJECT_PATH_SLUG.$KUBE_DOMAIN
+  when: manual
+  only:
+    - master
+
+clean:
+  stage: clean
+  script:
+    - helm delete --namespace $ENVIRONMENT --name cassandra
+    - helm delete --namespace $ENVIRONMENT --name fluxapi
+    - rm -rf target/

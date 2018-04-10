@@ -1,0 +1,25 @@
+version: "3"
+services:
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - cassandra.dev.svc
+    command:  ["java", "-jar", "/home/fluxapi-0.0.1-SNAPSHOT.jar"]
+  cassandra-dev:
+    image: cassandra:3.11
+    volumes:
+     - data:/var/lib/cassandra
+    restart: "no"
+    ports:
+      - "9042:9042"
+    environment:
+      - cassandra.keyspace=recommend
+      - cassandra.hostname=cassandra.dev.svc
+      - cassandra.port=9042
+      - cassandra.username=cassandra
+      - cassandra.password=cassandra
+volumes:
+  data:
+    driver: "local"
